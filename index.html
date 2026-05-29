@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>超级井字棋 - 经典规则</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;600;700;900&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-deep: #0a0a1a;
+            --bg-mid: #111133;
+            --panel-bg: rgba(18, 25, 55, 0.75);
+            --panel-border: rgba(240, 165, 0, 0.15);
+            --gold: #f0a500;
+            --gold-light: #ffd166;
+            --gold-dark: #c78500;
+            --accent: #7b2ff7;
+            --accent-light: #a76bfa;
+            --white-piece: #f8f8ff;
+            --black-piece: #1a1a2e;
+            --cell-bg: rgba(15, 20, 50, 0.6);
+            --cell-hover: rgba(123, 47, 247, 0.25);
+            --grid-line: rgba(80, 100, 180, 0.35);
+            --text-dim: rgba(180, 190, 220, 0.7);
+        }
+
+        body {
+            font-family: 'Noto Sans SC', 'Segoe UI', sans-serif;
+            background: var(--bg-deep);
+            color: #e8ecf4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            flex-direction: column;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        /* ── Animated background ── */
+        #bg-canvas {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            pointer-events: none;
+        }
+        body > *:not(#bg-canvas) { position: relative; z-index: 1; }
+
+        /* ── Title ── */
+        h1 {
+            font-size: 2.4rem;
+            font-weight: 900;
+            margin-bottom: 24px;
+            letter-spacing: 4px;
+            background: linear-gradient(135deg, var(--gold-light), var(--gold), var(--gold-dark));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: none;
+            filter: drop-shadow(0 2px 8px rgba(240, 165, 0, 0.3));
+            animation: titleGlow 3s ease-in-out infinite alternate;
+        }
+        @keyframes titleGlow {
+            0% { filter: drop-shadow(0 2px 8px rgba(240, 165, 0, 0.3)); }
+            100% { filter: drop-shadow(0 2px 16px rgba(240, 165, 0, 0.6)); }
+        }
+
+        .container { max-width: 720px; width: 100%; }
+
+        /* ── Glassmorphism Panels ── */
+        .panel {
+            background: var(--panel-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--panel-border);
+            padding: 32px 28px;
+            border-radius: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+            box-shadow:
+                0 8px 32px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            animation: panelIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        @keyframes panelIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Login Panel ── */
+        #login-panel h3 {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            margin-bottom: 20px;
+            letter-spacing: 2px;
+        }
+        .login-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        input[type="text"] {
+            padding: 12px 18px;
+            border-radius: 12px;
+            border: 2px solid rgba(123, 47, 247, 0.3);
+            background: rgba(10, 10, 30, 0.6);
+            font-size: 16px;
+            color: #e8ecf4;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.3s, box-shadow 0.3s;
+            width: 200px;
+        }
+        input[type="text"]::placeholder { color: rgba(160, 170, 200, 0.5); }
+        input[type="text"]:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px rgba(123, 47, 247, 0.15);
+        }
+
+        /* ── Buttons ── */
+        button {
+            padding: 12px 28px;
+            background: linear-gradient(135deg, var(--gold), var(--gold-dark));
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 700;
+            font-family: inherit;
+            color: #1a1a2e;
+            letter-spacing: 1px;
+            transition: transform 0.2s, box-shadow 0.2s, filter 0.2s;
+            box-shadow: 0 4px 16px rgba(240, 165, 0, 0.3);
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 24px rgba(240, 165, 0, 0.45);
+            filter: brightness(1.1);
+        }
+        button:active { transform: translateY(0); }
+        button:disabled {
+            background: linear-gradient(135deg, #3a3a4a, #2a2a3a);
+            color: #666;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+            filter: none;
+        }
+
+        /* ── Game Status ── */
+        .status {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin: 8px 0 16px;
+            min-height: 1.6em;
+            transition: color 0.3s;
+        }
+        .status.win { color: #4ade80; }
+        .status.lose { color: #f87171; }
+        .status.draw { color: var(--gold-light); }
+
+        /* ── Score Board ── */
+        .score-board {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            margin: 16px 0;
+        }
+        .score-card {
+            background: rgba(10, 10, 30, 0.5);
+            border: 1px solid rgba(80, 100, 180, 0.2);
+            border-radius: 14px;
+            padding: 12px 24px;
+            min-width: 140px;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        .score-card.my-turn {
+            border-color: rgba(240, 165, 0, 0.5);
+            box-shadow: 0 0 20px rgba(240, 165, 0, 0.1);
+        }
+        .score-label {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 130px;
+        }
+        .score-num {
+            font-size: 2rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--gold-light), var(--gold));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .score-vs {
+            display: flex;
+            align-items: center;
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: rgba(120, 130, 170, 0.5);
+        }
+
+        .turn-info {
+            margin: 12px 0;
+            font-size: 1rem;
+            color: var(--text-dim);
+            min-height: 1.4em;
+            transition: color 0.3s;
+        }
+        .turn-info.your-turn { color: var(--gold-light); font-weight: 600; }
+
+        /* ── Big Grid ── */
+        .big-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 20px auto 0;
+            aspect-ratio: 1 / 1;
+            width: 100%;
+            max-width: 560px;
+            padding: 12px;
+            background: rgba(10, 15, 40, 0.5);
+            border-radius: 16px;
+            border: 1px solid rgba(80, 100, 180, 0.15);
+        }
+
+        /* ── Small Grid (sub-board) ── */
+        .small-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 3px;
+            padding: 4px;
+            background: rgba(30, 40, 80, 0.5);
+            border-radius: 10px;
+            border: 2px solid transparent;
+            transition: border-color 0.3s, box-shadow 0.3s, background 0.3s;
+            aspect-ratio: 1 / 1;
+        }
+        .small-grid.active {
+            border-color: var(--gold);
+            box-shadow:
+                0 0 20px rgba(240, 165, 0, 0.25),
+                inset 0 0 12px rgba(240, 165, 0, 0.08);
+            animation: activePulse 2s ease-in-out infinite;
+        }
+        @keyframes activePulse {
+            0%, 100% { box-shadow: 0 0 20px rgba(240, 165, 0, 0.25), inset 0 0 12px rgba(240, 165, 0, 0.08); }
+            50% { box-shadow: 0 0 30px rgba(240, 165, 0, 0.4), inset 0 0 20px rgba(240, 165, 0, 0.12); }
+        }
+        .small-grid.owned-white {
+            border-color: rgba(240, 240, 255, 0.6);
+            background: rgba(240, 240, 255, 0.06);
+            opacity: 0.7;
+            pointer-events: none;
+        }
+        .small-grid.owned-black {
+            border-color: rgba(100, 100, 140, 0.6);
+            background: rgba(30, 30, 60, 0.3);
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        /* ── Cell ── */
+        .cell {
+            position: relative;
+            background: var(--cell-bg);
+            cursor: pointer;
+            transition: background 0.2s, transform 0.15s;
+            aspect-ratio: 1 / 1;
+            border-radius: 6px;
+        }
+        .cell:hover:not(.taken) {
+            background: var(--cell-hover);
+            transform: scale(1.05);
+        }
+        .cell.taken { cursor: default; }
+
+        /* ── Game Pieces ── */
+        .cell.white::after,
+        .cell.black::after {
+            content: "";
+            position: absolute;
+            top: 12%; left: 12%;
+            width: 76%; height: 76%;
+            border-radius: 50%;
+            animation: pieceDrop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+        @keyframes pieceDrop {
+            0% { transform: scale(0) translateY(-10px); opacity: 0; }
+            100% { transform: scale(1) translateY(0); opacity: 1; }
+        }
+        .cell.white::after {
+            background: radial-gradient(circle at 35% 35%, #ffffff, #d0d0e8 60%, #a8a8c8);
+            box-shadow:
+                0 2px 8px rgba(255, 255, 255, 0.3),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.1),
+                inset 0 2px 4px rgba(255, 255, 255, 0.8);
+        }
+        .cell.black::after {
+            background: radial-gradient(circle at 35% 35%, #4a4a6a, #1a1a2e 50%, #0a0a18);
+            box-shadow:
+                0 2px 8px rgba(0, 0, 0, 0.5),
+                inset 0 -2px 4px rgba(0, 0, 0, 0.3),
+                inset 0 2px 4px rgba(100, 100, 140, 0.3);
+        }
+
+        /* ── Last move highlight ── */
+        .cell.last-move {
+            animation: lastMoveGlow 1s ease-out;
+        }
+        @keyframes lastMoveGlow {
+            0% { box-shadow: 0 0 16px rgba(240, 165, 0, 0.6); }
+            100% { box-shadow: none; }
+        }
+
+        /* ── Waiting animation ── */
+        .waiting-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+        }
+        .waiting-dots {
+            display: flex;
+            gap: 8px;
+        }
+        .waiting-dots span {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: var(--gold);
+            animation: dotBounce 1.4s ease-in-out infinite;
+        }
+        .waiting-dots span:nth-child(2) { animation-delay: 0.2s; }
+        .waiting-dots span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes dotBounce {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+            40% { transform: scale(1.2); opacity: 1; }
+        }
+        .waiting-text {
+            font-size: 1.1rem;
+            color: var(--gold-light);
+            font-weight: 600;
+        }
+
+        /* ── Game Over Overlay ── */
+        .game-result {
+            margin: 16px 0;
+            padding: 16px;
+            border-radius: 14px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            animation: resultSlide 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes resultSlide {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .game-result.win {
+            background: linear-gradient(135deg, rgba(74, 222, 128, 0.15), rgba(74, 222, 128, 0.05));
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            color: #4ade80;
+        }
+        .game-result.lose {
+            background: linear-gradient(135deg, rgba(248, 113, 113, 0.15), rgba(248, 113, 113, 0.05));
+            border: 1px solid rgba(248, 113, 113, 0.3);
+            color: #f87171;
+        }
+        .game-result.draw {
+            background: linear-gradient(135deg, rgba(240, 165, 0, 0.15), rgba(240, 165, 0, 0.05));
+            border: 1px solid rgba(240, 165, 0, 0.3);
+            color: var(--gold-light);
+        }
+
+        /* ── Leave button ── */
+        #leave-btn {
+            margin-top: 18px;
+            padding: 10px 24px;
+            background: linear-gradient(135deg, rgba(100, 110, 150, 0.3), rgba(60, 65, 90, 0.3));
+            border: 1px solid rgba(100, 110, 150, 0.3);
+            color: var(--text-dim);
+            font-size: 14px;
+            box-shadow: none;
+        }
+        #leave-btn:hover {
+            background: linear-gradient(135deg, rgba(248, 113, 113, 0.2), rgba(248, 113, 113, 0.1));
+            border-color: rgba(248, 113, 113, 0.4);
+            color: #f87171;
+            box-shadow: 0 4px 16px rgba(248, 113, 113, 0.15);
+        }
+
+        /* ── Footer ── */
+        .footer {
+            margin-top: 20px;
+            font-size: 0.8rem;
+            color: rgba(100, 110, 150, 0.4);
+            letter-spacing: 1px;
+        }
+
+        /* ── Responsive ── */
+        @media (max-width: 480px) {
+            h1 { font-size: 1.6rem; letter-spacing: 2px; }
+            .big-grid { max-width: 100%; padding: 6px; gap: 6px; }
+            .small-grid { gap: 2px; padding: 3px; }
+            .score-board { gap: 16px; }
+            .score-card { min-width: 100px; padding: 10px 16px; }
+            .score-num { font-size: 1.6rem; }
+            .panel { padding: 20px 16px; border-radius: 16px; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="bg-canvas"></canvas>
+
+    <h1>超级井字棋</h1>
+    <div class="container">
+        <div id="login-panel" class="panel">
+            <h3>准备对战</h3>
+            <div class="login-row">
+                <input type="text" id="username-input" placeholder="输入你的昵称" maxlength="10">
+                <button id="start-btn">开始对战</button>
+            </div>
+        </div>
+        <div id="game-panel" class="panel" style="display: none;">
+            <div id="status" class="status"></div>
+            <div id="result-banner" style="display:none;"></div>
+            <div class="score-board">
+                <div class="score-card" id="my-card">
+                    <div class="score-label" id="my-label">你</div>
+                    <div class="score-num" id="my-score">0</div>
+                </div>
+                <div class="score-vs">VS</div>
+                <div class="score-card" id="opp-card">
+                    <div class="score-label" id="opp-label">对手</div>
+                    <div class="score-num" id="opp-score">0</div>
+                </div>
+            </div>
+            <div id="turn-info" class="turn-info"></div>
+            <div class="big-grid" id="big-grid"></div>
+            <button id="leave-btn">离开游戏</button>
+        </div>
+    </div>
+    <div class="footer">SUPER TIC-TAC-TOE</div>
+
+    <script>
+    // ── Animated Background ──
+    (function() {
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        const PARTICLE_COUNT = 50;
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        function createParticle() {
+            return {
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                vx: (Math.random() - 0.5) * 0.3,
+                vy: (Math.random() - 0.5) * 0.3,
+                r: Math.random() * 2 + 0.5,
+                alpha: Math.random() * 0.3 + 0.1
+            };
+        }
+        for (let i = 0; i < PARTICLE_COUNT; i++) particles.push(createParticle());
+
+        function drawBg() {
+            // Gradient background
+            const grad = ctx.createRadialGradient(
+                canvas.width * 0.5, canvas.height * 0.4, 0,
+                canvas.width * 0.5, canvas.height * 0.5, canvas.width * 0.7
+            );
+            grad.addColorStop(0, '#12123a');
+            grad.addColorStop(1, '#0a0a1a');
+            ctx.fillStyle = grad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Particles
+            particles.forEach(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(240, 165, 0, ${p.alpha})`;
+                ctx.fill();
+            });
+
+            // Draw lines between nearby particles
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 120) {
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.strokeStyle = `rgba(123, 47, 247, ${0.08 * (1 - dist / 120)})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(drawBg);
+        }
+        drawBg();
+    })();
+
+    // ── Game Logic ──
+    let ws = null;
+    let myColor = null;
+    let gameActive = false;
+    let gameOver = false;
+    let myUsername = null;
+    let currentTurn = null;
+    let nextSubBoard = null;
+    let lastMove = null;
+
+    const loginPanel = document.getElementById("login-panel");
+    const gamePanel = document.getElementById("game-panel");
+    const startBtn = document.getElementById("start-btn");
+    const leaveBtn = document.getElementById("leave-btn");
+    const usernameInput = document.getElementById("username-input");
+    const statusDiv = document.getElementById("status");
+    const resultBanner = document.getElementById("result-banner");
+    const turnInfoDiv = document.getElementById("turn-info");
+    const bigGrid = document.getElementById("big-grid");
+    const myScoreSpan = document.getElementById("my-score");
+    const oppScoreSpan = document.getElementById("opp-score");
+    const myLabel = document.getElementById("my-label");
+    const oppLabel = document.getElementById("opp-label");
+    const myCard = document.getElementById("my-card");
+    const oppCard = document.getElementById("opp-card");
+
+    function connect(username) {
+        myUsername = username;
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host;
+        ws = new WebSocket(`${protocol}//${host}/ws?username=${encodeURIComponent(username)}`);
+
+        ws.onopen = () => {
+            statusDiv.innerHTML = '<span class="waiting-container"><span class="waiting-text">正在匹配对手</span><span class="waiting-dots"><span></span><span></span><span></span></span></span>';
+            gamePanel.style.display = "block";
+            loginPanel.style.display = "none";
+            gameActive = true;
+            gameOver = false;
+            resultBanner.style.display = "none";
+            bigGrid.innerHTML = "";
+        };
+        ws.onmessage = (e) => handleMessage(JSON.parse(e.data));
+        ws.onclose = () => {
+            if (gameOver) {
+                statusDiv.textContent = "游戏已结束";
+                leaveBtn.disabled = false;
+            } else {
+                statusDiv.textContent = "连接已断开";
+                setTimeout(resetUI, 2000);
+            }
+            gameActive = false;
+        };
+        ws.onerror = () => {
+            statusDiv.textContent = "连接错误";
+        };
+    }
+
+    function handleMessage(msg) {
+        switch(msg.type) {
+            case "waiting":
+                break;
+            case "game_start":
+                myColor = msg.color;
+                myLabel.textContent = myUsername + (myColor === 'white' ? ' (白)' : ' (黑)');
+                oppLabel.textContent = msg.opponent + (myColor === 'white' ? ' (黑)' : ' (白)');
+
+                statusDiv.textContent = `对战开始 - ${myColor === 'white' ? '白棋 (先手)' : '黑棋 (后手)'}`;
+                statusDiv.className = "status";
+                gameOver = false;
+                resultBanner.style.display = "none";
+                currentTurn = "white";
+                nextSubBoard = null;
+                lastMove = null;
+                renderBoard(null, null);
+                updateTurnDisplay("white", null);
+                highlightActiveSubBoard(null, "white");
+                break;
+            case "board_update":
+                lastMove = msg.last_move;
+                renderBoard(msg.board, msg.sub_board_owners);
+                updateScores(msg.occupied_counts);
+                currentTurn = msg.turn;
+                nextSubBoard = msg.next_sub_board;
+                updateTurnDisplay(msg.turn, msg.next_sub_board);
+                highlightActiveSubBoard(msg.next_sub_board, msg.turn);
+                break;
+            case "game_over":
+                gameActive = false;
+                gameOver = true;
+                if (msg.winner === "draw") {
+                    statusDiv.textContent = "平局";
+                    statusDiv.className = "status draw";
+                    showResultBanner("draw", "平局！势均力敌", msg.reason);
+                } else if (msg.winner === myColor) {
+                    statusDiv.textContent = "胜利";
+                    statusDiv.className = "status win";
+                    showResultBanner("win", "你赢了！恭喜恭喜", msg.reason);
+                } else {
+                    statusDiv.textContent = "失败";
+                    statusDiv.className = "status lose";
+                    showResultBanner("lose", "你输了，再接再厉", msg.reason);
+                }
+                if (msg.occupied_counts) updateScores(msg.occupied_counts);
+                disableAllCells();
+                turnInfoDiv.textContent = "";
+                break;
+            case "error":
+                shakeBoard();
+                break;
+        }
+    }
+
+    function showResultBanner(type, text, reason) {
+        resultBanner.className = "game-result " + type;
+        resultBanner.textContent = reason ? `${text} (${reason})` : text;
+        resultBanner.style.display = "block";
+    }
+
+    function shakeBoard() {
+        bigGrid.style.animation = "none";
+        bigGrid.offsetHeight;
+        bigGrid.style.animation = "shake 0.4s ease-in-out";
+        setTimeout(() => bigGrid.style.animation = "", 400);
+    }
+
+    // Add shake keyframes dynamically
+    const shakeStyle = document.createElement('style');
+    shakeStyle.textContent = `
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-6px); }
+            40% { transform: translateX(6px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+    `;
+    document.head.appendChild(shakeStyle);
+
+    function renderBoard(boardData, owners) {
+        bigGrid.innerHTML = "";
+        for (let s = 0; s < 9; s++) {
+            const smallDiv = document.createElement("div");
+            smallDiv.className = "small-grid";
+            smallDiv.dataset.sub = s;
+            if (owners && owners[s]) {
+                smallDiv.classList.add("owned-" + owners[s]);
+            }
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 3; c++) {
+                    const cell = document.createElement("div");
+                    cell.className = "cell";
+                    cell.dataset.sub = s;
+                    cell.dataset.row = r;
+                    cell.dataset.col = c;
+                    if (boardData && boardData[s][r][c]) {
+                        cell.classList.add("taken", boardData[s][r][c]);
+                    }
+                    if (lastMove && lastMove.sub_board === s && lastMove.row === r && lastMove.col === c) {
+                        cell.classList.add("last-move");
+                    }
+                    cell.addEventListener("click", cellClickHandler);
+                    smallDiv.appendChild(cell);
+                }
+            }
+            bigGrid.appendChild(smallDiv);
+        }
+    }
+
+    function cellClickHandler(e) {
+        if (!gameActive || gameOver) return;
+        if (currentTurn !== myColor) return;
+        const cell = e.currentTarget;
+        if (cell.classList.contains("taken")) return;
+        const sub = parseInt(cell.dataset.sub);
+        const smallGrid = document.querySelector(`.small-grid[data-sub="${sub}"]`);
+        if (smallGrid.classList.contains("owned-white") || smallGrid.classList.contains("owned-black")) return;
+        ws.send(JSON.stringify({
+            type: "move",
+            sub_board: sub,
+            row: parseInt(cell.dataset.row),
+            col: parseInt(cell.dataset.col)
+        }));
+    }
+
+    function updateScores(counts) {
+        if (!counts) return;
+        if (myColor === "white") {
+            myScoreSpan.textContent = counts.white;
+            oppScoreSpan.textContent = counts.black;
+        } else {
+            myScoreSpan.textContent = counts.black;
+            oppScoreSpan.textContent = counts.white;
+        }
+    }
+
+    function updateTurnDisplay(turn, nextSb) {
+        if (gameOver) return;
+        if (turn === myColor) {
+            turnInfoDiv.textContent = "轮到你了";
+            if (nextSb !== null && nextSb !== undefined) {
+                turnInfoDiv.textContent += ` · 请落子在第 ${nextSb + 1} 宫`;
+            }
+            turnInfoDiv.className = "turn-info your-turn";
+            myCard.classList.add("my-turn");
+            oppCard.classList.remove("my-turn");
+        } else {
+            turnInfoDiv.textContent = "等待对手落子...";
+            turnInfoDiv.className = "turn-info";
+            myCard.classList.remove("my-turn");
+            oppCard.classList.add("my-turn");
+        }
+    }
+
+    function highlightActiveSubBoard(nextSb, turn) {
+        document.querySelectorAll(".small-grid").forEach(sg => sg.classList.remove("active"));
+        if (gameOver) return;
+        if (turn === myColor && nextSb !== null && nextSb !== undefined) {
+            const target = document.querySelector(`.small-grid[data-sub="${nextSb}"]`);
+            if (target && !target.classList.contains("owned-white") && !target.classList.contains("owned-black")) {
+                target.classList.add("active");
+            }
+        }
+    }
+
+    function disableAllCells() {
+        document.querySelectorAll(".cell").forEach(cell => {
+            cell.removeEventListener("click", cellClickHandler);
+            cell.style.cursor = "default";
+        });
+    }
+
+    function resetUI() {
+        loginPanel.style.display = "block";
+        gamePanel.style.display = "none";
+        bigGrid.innerHTML = "";
+        myScoreSpan.textContent = "0";
+        oppScoreSpan.textContent = "0";
+        statusDiv.textContent = "";
+        statusDiv.className = "status";
+        turnInfoDiv.textContent = "";
+        resultBanner.style.display = "none";
+        gameActive = false;
+        gameOver = false;
+        if (ws) ws.close();
+        ws = null;
+        startBtn.disabled = false;
+        usernameInput.disabled = false;
+        nextSubBoard = null;
+        currentTurn = null;
+        lastMove = null;
+    }
+
+    startBtn.addEventListener("click", () => {
+        const name = usernameInput.value.trim();
+        if (!name) {
+            usernameInput.style.borderColor = "#f87171";
+            usernameInput.style.boxShadow = "0 0 0 4px rgba(248, 113, 113, 0.15)";
+            setTimeout(() => {
+                usernameInput.style.borderColor = "";
+                usernameInput.style.boxShadow = "";
+            }, 1500);
+            return;
+        }
+        connect(name);
+        startBtn.disabled = true;
+        usernameInput.disabled = true;
+    });
+
+    usernameInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") startBtn.click();
+    });
+
+    leaveBtn.addEventListener("click", () => {
+        gameOver = true;
+        if (ws) ws.close();
+        resetUI();
+    });
+    </script>
+</body>
+</html>
